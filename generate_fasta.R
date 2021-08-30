@@ -41,18 +41,31 @@ samp %>% group_split(`sample ID`) -> samp_grp
 ####################################################################
 # .f to process the sample files with reference and create fasta seq
 create_fasta <- function(x, y=dict_rcrsRef_df_final){
+  #browser()
   x %>% separate_rows(haplotype,sep = "\\s") %>%
   rename("SampleID"=`sample ID`) %>% 
-  separate(haplotype, into = c("pos","bp"), sep = "(?<=[0-9.])(?=[A-Zdel])") %>%
-  mutate(pos=as.integer(pos)) %>%
-  group_by(SampleID, pos) %>%
-  summarise(bp1=paste0(bp,collapse = ""))->tempx
+  separate(haplotype, 
+           into = c("pos","bp"), 
+           sep = "(?<=[0-9.])(?=[A-Zdel])") %>% 
+  separate(pos, 
+           into=c("pos1","pos2"), 
+           sep = "\\.") %>% 
+  mutate(Ins=ifelse(!is.na(pos2),"Ins",pos2))%>%
+  mutate(pos1=as.integer(pos1)) %>%
+  group_by(SampleID, pos1) %>%
+  summarise(bp1=paste0(bp,collapse = ""), Ins=Ins[[1]])->tempx
   
   # full outer join with samples
-  y %>% full_join(tempx, by = c("pos"="pos")) -> temp2gether
+  y %>% full_join(tempx, by = c("pos"="pos1")) %>%
+    arrange(pos)-> temp2gether
   
   # getting ref seq and snps in same col
-  temp2gether %>% mutate(fasta=ifelse(is.na(bp1),bp,bp1))->temp2gether_1
+  temp2gether %>% mutate(fasta=ifelse(!is.na(Ins),
+                                      paste0(bp,bp1),
+                                      ifelse(is.na(bp1),
+                                             bp,
+                                             bp1)
+                                        )) -> temp2gether_1
   
   # getting the sample name
   samName<-temp2gether_1 %>% 
